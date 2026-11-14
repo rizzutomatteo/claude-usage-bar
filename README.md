@@ -21,7 +21,7 @@ che usano quella riga (per esempio «Press Ctrl-C again to exit») restano visib
 `/bar` spegne e riaccende la barra; la scelta vale anche per le sessioni nuove.
 
 Note: i limiti a 5 ore e settimanali ci sono solo con un abbonamento Claude (Pro/Max). Le ore sono nel fuso
-Europe/Rome. La larghezza del terminale arriva alla mod solo con l'interfaccia a schermo intero (`"tui": "fullscreen"`);
+del computer (quello di sistema, o `TZ` se è impostata). La larghezza del terminale arriva alla mod solo con l'interfaccia a schermo intero (`"tui": "fullscreen"`);
 senza, la barra usa 120 colonne e taglia la fine se non c'entra.
 
 ## Installazione

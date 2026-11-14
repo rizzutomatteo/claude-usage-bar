@@ -64,30 +64,15 @@ const GRADI: Grado[] = [
   g(0, { breve: true, fine: false, reset: false, sep: ' · ' }),
 ]
 
-// ── ora italiana (Europe/Rome), senza dipendere dal fuso del sandbox ──────────
-function ultimaDomenica(anno: number, mese: number): number {
-  const d = new Date(Date.UTC(anno, mese + 1, 0, 1)) // ultimo giorno del mese, 01:00 UTC
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay())
-  return d.getTime()
-}
-
-function locale(ms: number): Date {
-  const anno = new Date(ms).getUTCFullYear()
-  const estate = ms >= ultimaDomenica(anno, 2) && ms < ultimaDomenica(anno, 9)
-  return new Date(ms + (estate ? 2 : 1) * 3600_000) // da leggere con i getUTC*
-}
-
+// ── ore nel fuso del computer di chi usa la mod (il sandbox segue TZ del processo) ──
 const due = (n: number) => String(n).padStart(2, '0')
 
 function orario(ms: number, conGiorno: boolean, ora: number): string {
-  const t = locale(ms)
-  const hm = `${due(t.getUTCHours())}:${due(t.getUTCMinutes())}`
+  const t = new Date(ms)
+  const hm = `${due(t.getHours())}:${due(t.getMinutes())}`
   if (!conGiorno) return hm
-  const oggi = locale(ora)
-  if (t.getUTCFullYear() === oggi.getUTCFullYear() && t.getUTCMonth() === oggi.getUTCMonth() && t.getUTCDate() === oggi.getUTCDate()) {
-    return `oggi ${hm}`
-  }
-  return `${GIORNI[t.getUTCDay()]} ${hm}`
+  if (t.toDateString() === new Date(ora).toDateString()) return `oggi ${hm}`
+  return `${GIORNI[t.getDay()]} ${hm}`
 }
 
 function durata(ms: number): string {
