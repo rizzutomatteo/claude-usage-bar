@@ -1,0 +1,6 @@
+{
+  "name": "usage-bar",
+  "version": "0.1.0",
+  "description": "Contesto, limite 5 ore e settimanale con reset e ritmo, nella riga sotto al riquadro accanto alla modalità (al posto della status line)",
+  "types": "./types/index.d.ts"
+}
