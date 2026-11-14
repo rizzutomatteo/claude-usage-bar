@@ -12,7 +12,8 @@
 // "in linea" entro ±max(3 punti, 10% del previsto), perché le percentuali arrivano intere;
 // ▲ finisce ~ora = sopra il ritmo, e andando avanti con la media fin qui finisce a quell'ora.
 //
-// /bar la spegne e la riaccende; la scelta resta anche per le sessioni nuove ($.store).
+// /bar la spegne e la riaccende; /bar ascii passa ai simboli semplici (= - | @ ok ^) per console
+// vecchie o font senza ━ ↺ ✓. Le scelte restano anche per le sessioni nuove ($.store).
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
@@ -21,6 +22,7 @@ import type { Limit, Snapshot } from '../types'
 
 const snap = atom({ plugin: 'usage-bar', key: 'snap' } as const, null)
 const off = atom({ plugin: 'usage-bar', key: 'off' } as const, false)
+const ascii = atom({ plugin: 'usage-bar', key: 'ascii' } as const, false)
 
 // ── colori ─────────────────────────────────────────────────────────────────────
 const TEXT = '#c9d1d9'
@@ -41,8 +43,16 @@ const FINESTRE = {
 } as const
 type Finestra = keyof typeof FINESTRE
 
-// pezzi della riga di Claude Code che sono solo promemoria fissi: la barra li sostituisce
-const FISSI = [/^\(?shift\+tab to cycle\)?$/i, /^\? for shortcuts$/i, /^← for agents$/i, /^esc to interrupt$/i]
+// Pezzi della riga di Claude Code che sono solo promemoria di tasti: la barra li sostituisce.
+// Si riconoscono dalla forma "<tasto> to|for <poche parole>" ("(shift+tab to cycle)", "? for shortcuts",
+// "← for agents", "esc to interrupt", "ctrl+t to hide tasks"), non dal testo esatto, così reggono se
+// Claude Code cambia le parole. Tutto il resto (attività in background, avvisi) resta visibile.
+const PROMEMORIA = /^\(?\S{1,15} (?:to|for) [a-z]+(?: [a-z]+){0,3}\)?$/i
+const promemoria = (parte: string) => PROMEMORIA.test(parte)
+
+// simboli semplici per /bar ascii
+const ASCII: Record<string, string> = { '━': '=', '─': '-', '│': '|', '↺': '@', '✓': 'ok', '▲': '^', '✕': 'x', '·': '-', '—': '-', '−': '-' }
+const semplice = (segs: Seg[]): Seg[] => segs.map(x => ({ ...x, t: [...x.t].map(ch => ASCII[ch] ?? ch).join('') }))
 
 type Seg = { t: string; c: string; b?: boolean }
 type Grado = { barra: number; tok: boolean; conto: boolean; parola: boolean; breve: boolean; fine: boolean; reset: boolean; sep: string }
@@ -199,15 +209,16 @@ function limite(kind: Finestra, limiti: Limit[], gr: Grado, ora: number): Seg[] 
   return out
 }
 
-function riga(s: Snapshot, gr: Grado, ora: number): Seg[] {
+function riga(s: Snapshot, gr: Grado, ora: number, asc: boolean): Seg[] {
   const sep = { t: gr.sep, c: SEP }
-  return [...contesto(s, gr), sep, ...limite('five_hour', s.limits, gr, ora), sep, ...limite('seven_day', s.limits, gr, ora)]
+  const segs = [...contesto(s, gr), sep, ...limite('five_hour', s.limits, gr, ora), sep, ...limite('seven_day', s.limits, gr, ora)]
+  return asc ? semplice(segs) : segs
 }
 
 const larghezza = (segs: Seg[]) => segs.reduce((n, x) => n + [...x.t].length, 0)
 
 // il grado si sceglie sul caso più lungo possibile, così a parità di spazio la riga non cambia forma
-function scegli(s: Snapshot, spazio: number, ora: number): Grado | undefined {
+function scegli(s: Snapshot, spazio: number, ora: number, asc: boolean): Grado | undefined {
   const w = s.window || 200_000
   const peggiore: Snapshot = {
     window: w, percent: 99, tokens: w * 0.99, now: ora,
@@ -216,7 +227,7 @@ function scegli(s: Snapshot, spazio: number, ora: number): Grado | undefined {
       { kind: 'seven_day', percentUsed: 60, resetsAt: new Date(ora + 5 * 86400_000).toISOString() },
     ],
   }
-  return GRADI.find(gr => larghezza(riga(peggiore, gr, ora)) + 2 <= spazio)
+  return GRADI.find(gr => larghezza(riga(peggiore, gr, ora, asc)) + 2 <= spazio)
 }
 
 // ── aggancio ───────────────────────────────────────────────────────────────────
@@ -230,9 +241,16 @@ async function leggi($: EngineInterface): Promise<void> {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
-    await $.command.register({ name: 'bar', description: 'Mostra o nasconde la barra dei consumi (contesto, 5h, 7g)' })
+    await $.command.register({
+      name: 'bar',
+      description: 'Mostra o nasconde la barra dei consumi (contesto, 5h, 7g); /bar ascii per i simboli semplici',
+      argumentHint: '[ascii]',
+      immediate: true,
+    })
     const spenta = (await $.store.get('off')) === true
+    const semplici = (await $.store.get('ascii')) === true
     await update($, off, () => spenta)
+    await update($, ascii, () => semplici)
     $.clock.after(0, () => void leggi($))
     $.clock.every(30_000, () => void leggi($)) // tiene giusti i conti alla rovescia
     return r
@@ -245,7 +263,15 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'bar' }, async $ => {
+  on('command.run', { command: 'bar' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'ascii') {
+      const semplici = !(await read($, ascii))
+      await update($, ascii, () => semplici)
+      await $.store.set('ascii', semplici)
+      return { text: semplici ? 'Simboli semplici attivi (/bar ascii per tornare a quelli normali)' : 'Simboli normali attivi' }
+    }
+    if (arg) return { text: 'Uso: /bar accende o spegne la barra, /bar ascii cambia i simboli' }
     const spenta = !(await read($, off))
     await update($, off, () => spenta)
     await $.store.set('off', spenta)
@@ -259,17 +285,18 @@ export const register: Register = on => {
 
     const hint = e.props.hint ?? ''
     const parti = hint.split(' · ').map(p => p.trim()).filter(Boolean)
-    const vivi = parti.some(p => !FISSI.some(re => re.test(p)))
-    const conEtichetta = /shift\+tab to cycle/i.test(hint) // c'è "⏵⏵ ... mode on" davanti
+    const vivi = parti.some(p => !promemoria(p))
+    const conEtichetta = /shift\+tab/i.test(hint) // c'è "⏵⏵ ... mode on" davanti
+    const asc = await read($, ascii)
 
     let spazio = (e.viewport?.columns ?? 120) - 2 - (conEtichetta ? 18 : 0) // "⏵⏵ auto mode on · "; un'etichetta più lunga taglia la fine
     if (vivi) spazio -= [...hint].length + 5
 
     // se nemmeno il grado più asciutto entra, si usa quello e la fine si taglia
-    const gr = scegli(s, spazio, s.now) ?? GRADI[GRADI.length - 1]!
+    const gr = scegli(s, spazio, s.now, asc) ?? GRADI[GRADI.length - 1]!
 
     const { Box, Text } = $.ui.resolve(e)
-    const pezzi = riga(s, gr, s.now).filter(x => x.t)
+    const pezzi = riga(s, gr, s.now, asc).filter(x => x.t)
     const barraTxt = (
       <Text wrap="truncate-end">
         {pezzi.map(x => (
@@ -281,7 +308,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="row">
         {await next(e)}
-        <Text color={SEP}>{'  │  '}</Text>
+        <Text color={SEP}>{asc ? '  |  ' : '  │  '}</Text>
         {barraTxt}
       </Box>
     )

@@ -18,7 +18,12 @@ quindi non occupa una riga in più come una status line.
 Si adatta alla larghezza del terminale (dalla versione completa a una compatta senza barre). Gli avvisi di Claude Code
 che usano quella riga (per esempio «Press Ctrl-C again to exit») restano visibili.
 
-`/bar` spegne e riaccende la barra; la scelta vale anche per le sessioni nuove.
+`/bar` spegne e riaccende la barra. `/bar ascii` passa ai simboli semplici (`=` `-` `|` `@` `ok` `^`) per console
+vecchie o font che non hanno `━ ↺ ✓ ▲`; rilanciato torna a quelli normali. Le scelte valgono anche per le sessioni nuove.
+
+La barra sostituisce solo i promemoria dei tasti (testi come «shift+tab to cycle», «? for shortcuts», «esc to interrupt»,
+riconosciuti dalla forma «tasto to/for parole», non dal testo esatto). Attività in background e avvisi di Claude Code
+restano visibili, con la barra dopo.
 
 Note: i limiti a 5 ore e settimanali ci sono solo con un abbonamento Claude (Pro/Max). Le ore sono nel fuso
 del computer (quello di sistema, o `TZ` se è impostata). La larghezza del terminale arriva alla mod solo con l'interfaccia a schermo intero (`"tui": "fullscreen"`);
